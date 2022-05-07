@@ -1,30 +1,15 @@
 import nuke
 from Qt import QtCore, QtGui, QtWidgets
 
-from node_graph_utils.dag import (get_current_dag, get_node_bounds,
-                                  get_dag_node, node_center)
+from node_graph_utils.dag import (get_current_dag, clear_selection,
+                                  get_dag_node, NodeWrapper)
 
 
-class Connection(object):
-    def __init__(self, line, node, input):
-        self.line = line
-        self.node = node
-        self.input = input
-
-    def intersects(self, line):
-        # QLineF.intersect will be deprecated in Qt 5.16+
-        linef = QtCore.QLineF(line)
-        intersection_type, _point = linef.intersect(self.line)
-        return intersection_type == linef.BoundedIntersection
-
-    def cut(self):
-        self.node.setInput(self.input, None)
-
-
-class SnippingWidget(QtWidgets.QWidget):
+# TODO: This is almost the same class as Snippy, refactor to use a common base. Maybe scale widget too?
+class ConnectWidget(QtWidgets.QWidget):
 
     def __init__(self, dag_widget):
-        super(SnippingWidget, self).__init__(parent=dag_widget)
+        super(ConnectWidget, self).__init__(parent=dag_widget)
 
         # Group context
         self.dag_node = get_dag_node(self.parent())  # 'dag_widget', but it's garbage collected..
@@ -45,21 +30,23 @@ class SnippingWidget(QtWidgets.QWidget):
 
         # Attributes
         self.image = QtGui.QImage(dag_rect.size(), QtGui.QImage.Format_ARGB32_Premultiplied)
-        self.nodes_image = QtGui.QImage(dag_rect.size(), QtGui.QImage.Format_ARGB32_Premultiplied)
         self.drawing = False
         self.last_pos = None
+
+        self.all_nodes = [NodeWrapper(n) for n in nuke.allNodes() if n.maxInputs()]
+        self.nodes_to_connect = []
+        self.stacks = []
+        clear_selection()
 
         local_rect = self.geometry()
         local_rect.moveTopLeft(QtCore.QPoint(0, 0))
         with self.dag_node:
             scale = nuke.zoom()
             offset = QtCore.QPoint(self.width()/2, self.height()/2) / scale - QtCore.QPoint(*nuke.center())
-        self.transform = QtGui.QTransform()
-        self.transform.scale(scale, scale)
-        self.transform.translate(offset.x(), offset.y())
-
-        self.connections = self.get_all_connections()
-        self.cut_connections = []
+        transform = QtGui.QTransform()
+        transform.scale(scale, scale)
+        transform.translate(offset.x(), offset.y())
+        self.transform, _successful = transform.inverted()
 
     def paintEvent(self, event):
         """ Draw The widget """
@@ -70,48 +57,20 @@ class SnippingWidget(QtWidgets.QWidget):
 
         # Draw the bounds rectangle
         black_pen = QtGui.QPen()
-        black_pen.setColor(QtGui.QColor('red'))
+        black_pen.setColor(QtGui.QColor('green'))
         black_pen.setWidth(3)
         black_pen.setCosmetic(True)
         painter.setPen(black_pen)
 
         painter.drawRect(rect)
 
-        for connection in self.cut_connections:
-            painter.drawLine(connection.line)
-
-        painter.setCompositionMode(painter.CompositionMode_DestinationOut)
-        painter.drawImage(rect, self.nodes_image, rect)
-
-        painter.setCompositionMode(painter.CompositionMode_SourceOver)
         painter.drawImage(rect, self.image, rect)
-
-    def get_all_connections(self):
-        """ Get all connections and draw the nodes"""
-        painter = QtGui.QPainter(self.nodes_image)
-        my_pen_color = QtGui.QColor('black')
-        painter.setBrush(
-            QtGui.QBrush(my_pen_color, QtCore.Qt.SolidPattern))
-
-        all_connections = []
-        for node in nuke.allNodes():
-            if node.Class() in ['BackdropNode']:
-                continue
-            dependencies = node.dependencies(nuke.INPUTS)
-            rect = get_node_bounds(node)
-            painter.drawRect(self.transform.mapRect(rect))
-            for i in range(node.inputs()):
-                input_node = node.input(i)
-                if input_node and input_node in dependencies:
-                    line = QtCore.QLineF(rect.center(),
-                                         QtCore.QPoint(*node_center(input_node)))
-                    c = Connection(self.transform.map(line), node, i)
-                    all_connections.append(c)
-        return all_connections
 
     def start_drawing(self, pos):
         self.drawing = True
         self.last_pos = pos
+        self.nodes_to_connect = []
+        self.stacks.append(self.nodes_to_connect)
 
     def stop_drawing(self):
         self.drawing = False
@@ -126,13 +85,14 @@ class SnippingWidget(QtWidgets.QWidget):
         line = QtCore.QLine(self.last_pos, pos)
         painter.drawLine(line)
 
-        about_to_cut = []
-        for connection in self.connections:
-            if connection.intersects(line):
-                about_to_cut.append(connection)
-        for connection in about_to_cut:
-            self.connections.remove(connection)
-        self.cut_connections.extend(about_to_cut)
+        intersecting_nodes = []
+        for node in self.all_nodes:
+            if node.contains(self.transform.map(pos)):
+                node.setSelected(True)
+                intersecting_nodes.append(node)
+        for node in intersecting_nodes:
+            self.nodes_to_connect.append(node)
+            self.all_nodes.remove(node)
 
         self.last_pos = pos
         self.update()
@@ -178,28 +138,39 @@ class SnippingWidget(QtWidgets.QWidget):
         return False  # Swallow everything
 
     def show(self):
-        super(SnippingWidget, self).show()
+        super(ConnectWidget, self).show()
         # Install Event filter
         QtWidgets.QApplication.instance().installEventFilter(self)
 
     def close(self):
-        if self.cut_connections:
-            undo = nuke.Undo()
-            undo.begin('Snip Connections')
-            try:
-                for connection in self.cut_connections:
-                    connection.cut()
-            finally:
-                undo.end()
-        QtWidgets.QApplication.instance().removeEventFilter(self)
-        super(SnippingWidget, self).close()
+        try:
+            if self.stacks:
+                undo = nuke.Undo()
+                undo.begin('Draw Connections')
+                try:
+                    for nodes_to_connect in self.stacks:
+                        if len(nodes_to_connect) > 1:
+                            # Extract the nuke nodes:
+                            nodes = [n.node for n in nodes_to_connect]
+                            # Do 2 passes, first disconnect, then reconnect. In certain cases a circular dependency
+                            #   blocks the connection from happening, disconnecting helps, but not 100%.
+                            for node in nodes:
+                                if node.input(0) in nodes:
+                                    node.setInput(0, None)
+                            for i, node in enumerate(nodes[1:]):
+                                node.setInput(0, nodes[i])
+                finally:
+                    undo.end()
+        finally:
+            QtWidgets.QApplication.instance().removeEventFilter(self)
+            super(ConnectWidget, self).close()
 
 
-def snip():
+def snap():
     this_dag = get_current_dag()
-    global snippy_widget
-    snippy_widget = SnippingWidget(this_dag)
-    snippy_widget.show()
+    global snappy_widget
+    snappy_widget = ConnectWidget(this_dag)
+    snappy_widget.show()
 
 
-nuke.menu('Nuke').menu('Edit').addCommand('Snip', snip, 'y', shortcutContext=2)
+nuke.menu('Nuke').menu('Edit').addCommand('Snap', snap, 'u', shortcutContext=2)
