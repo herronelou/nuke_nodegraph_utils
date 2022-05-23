@@ -6,7 +6,7 @@ http://www.nukepedia.com/python/nodegraph/ku_labler
 """
 
 import nuke
-from Qt import QtWidgets, QtGui, QtCore
+from PySide2 import QtWidgets, QtGui, QtCore
 
 
 class Labeller(QtWidgets.QDialog):
