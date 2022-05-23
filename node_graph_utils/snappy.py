@@ -171,6 +171,3 @@ def snap():
     global snappy_widget
     snappy_widget = ConnectWidget(this_dag)
     snappy_widget.show()
-
-
-nuke.menu('Nuke').menu('Edit').addCommand('Snap', snap, 'u', shortcutContext=2)

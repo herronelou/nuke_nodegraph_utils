@@ -146,7 +146,6 @@ class SnippingWidget(QtWidgets.QWidget):
                 return False
 
             if event.button() == QtCore.Qt.LeftButton:
-                # Clicked on one of the opaque areas of the widget
                 self.start_drawing(event.pos())
                 return True
 
@@ -160,7 +159,6 @@ class SnippingWidget(QtWidgets.QWidget):
                 return True
 
         elif event.type() in [QtCore.QEvent.MouseMove]:
-            # Mouse moved, if we had a handle grabbed, resize nodes.
             if self.drawing:
                 self.draw_segment(event.pos())
                 return True
@@ -200,6 +198,3 @@ def snip():
     global snippy_widget
     snippy_widget = SnippingWidget(this_dag)
     snippy_widget.show()
-
-
-nuke.menu('Nuke').menu('Edit').addCommand('Snip', snip, 'y', shortcutContext=2)
