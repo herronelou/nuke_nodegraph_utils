@@ -8,7 +8,7 @@ from node_graph_utils.dag import NodeWrapper
 
 
 # Backdrops
-def auto_backdrop(nodes=None, padding=50, font_size=40, text=None):
+def auto_backdrop(nodes=None, padding=50, font_size=40, text=None, backdrop_node=None):
     """
     Automatically puts a backdrop behind the provided/selected nodes.
 
@@ -17,6 +17,8 @@ def auto_backdrop(nodes=None, padding=50, font_size=40, text=None):
         padding(int): Add padding around the nodes (default 50px)
         font_size (int): Size for the label (default 40px)
         text (str): Label for the backdrop. Will prompt user if None
+        backdrop_node (nuke.Node): Optionally pass an existing backdrop node which
+            will be re-used as the auto-backdrop.
 
     Returns:
         nuke.Node: Created backdrop node
@@ -29,8 +31,8 @@ def auto_backdrop(nodes=None, padding=50, font_size=40, text=None):
 
     if text is None:
         text = nuke.getInput('Backdrop Label', '')
-
-    backdrop = NodeWrapper(nuke.nodes.BackdropNode(note_font_size=font_size))
+    backdrop = NodeWrapper(backdrop_node or nuke.nodes.BackdropNode())
+    backdrop_node['note_font_size'].setValue(font_size)
     if text:
         backdrop.node['label'].setValue(text)
         backdrop.node.setName('Backdrop_{}'.format(text))
