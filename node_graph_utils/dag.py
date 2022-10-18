@@ -226,6 +226,9 @@ def get_label_size(node):
     Returns:
         QtCore.QSize: Size of the label
     """
+    label = node['label'].value()
+    if not label:
+        return QtCore.QSize(0, 0)
     regex = r'^(.+?)( Bold)?( Italic)?$'
     match = re.match(regex, node['note_font'].value())
     font = QtGui.QFont(match.group(1))
@@ -233,7 +236,7 @@ def get_label_size(node):
     font.setItalic(bool(match.group(3)))
     font.setPixelSize(node['note_font_size'].value())
     metrics = QtGui.QFontMetrics(font)
-    return metrics.size(0, node['label'].value())
+    return metrics.size(0, label)
 
 
 # Sorting
@@ -283,13 +286,16 @@ def select(nodes):
         node.setSelected(True)
 
 
+# Node Creation
 def create_node_with_defaults(node_class_name):
     """ Create a node with the default values from the user, but do not select it, place it, or connect it """
     node_class = getattr(nuke.nodes, node_class_name)
     node = node_class()
     node.resetKnobsToDefault()
+    return node
 
 
+# Other
 class NodeWrapper(object):
     """ Wraps a nuke node with its bounds, and exposes all the methods from QRectF to be used on the node """
 
@@ -348,7 +354,6 @@ class NodeWrapper(object):
             axis (int): Axis index, 0 for X, 1 for Y
         """
         current_center = list(self.center().toTuple())
-        t = current_center[:]
         current_center[axis] = value
         self.moveCenter(QtCore.QPoint(*current_center))
 

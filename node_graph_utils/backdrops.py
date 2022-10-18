@@ -32,7 +32,7 @@ def auto_backdrop(nodes=None, padding=50, font_size=40, text=None, backdrop_node
     if text is None:
         text = nuke.getInput('Backdrop Label', '')
     backdrop = NodeWrapper(backdrop_node or nuke.nodes.BackdropNode())
-    backdrop_node['note_font_size'].setValue(font_size)
+    backdrop.node['note_font_size'].setValue(font_size)
     if text:
         backdrop.node['label'].setValue(text)
         backdrop.node.setName('Backdrop_{}'.format(text))
