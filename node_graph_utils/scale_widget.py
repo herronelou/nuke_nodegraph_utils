@@ -1,8 +1,8 @@
 import nuke
 from Qt import QtCore, QtGui, QtWidgets, QtOpenGL
 
-from node_graph_utils.dag import (get_nodes_bounds, get_dag_widgets,
-                                  NodeWrapper, get_dag_node, calculate_bounds_adjustment)
+from .dag import (get_nodes_bounds, get_dag_widgets,
+                  NodeWrapper, get_dag_node, calculate_bounds_adjustment)
 
 
 class ScaleWidget(QtWidgets.QWidget):
@@ -344,6 +344,3 @@ class ScaleWidget(QtWidgets.QWidget):
         # self.restore_context()
         QtWidgets.QApplication.instance().removeEventFilter(self)
         super(ScaleWidget, self).close()
-
-
-

@@ -1,8 +1,8 @@
 import nuke
 from Qt import QtCore, QtGui, QtWidgets
 
-from node_graph_utils.dag import (get_current_dag, clear_selection,
-                                  get_dag_node, NodeWrapper)
+from .dag import (get_current_dag, clear_selection,
+                  get_dag_node, NodeWrapper)
 
 
 # TODO: This is almost the same class as Snippy, refactor to use a common base. Maybe scale widget too?

@@ -1,8 +1,8 @@
 import nuke
 from Qt import QtCore, QtGui, QtWidgets
 
-from node_graph_utils.dag import (get_current_dag, get_node_bounds,
-                                  get_dag_node, node_center)
+from .dag import (get_current_dag, get_node_bounds,
+                  get_dag_node, node_center)
 
 
 class Connection(object):
