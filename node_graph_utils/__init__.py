@@ -73,7 +73,6 @@ def install_menus(icons_root=None, install_experimental_menus=False):
                              icon=_get_icon('align_bottom'))
     organize_menu.addCommand('Align Nodes - Center Y', partial(align_selection, dag.CENTER_Y), 'meta+ctrl+5',
                              shortcutContext=2, icon=_get_icon('align_center_y'))
-
     organize_menu.addSeparator()
 
     organize_menu.addCommand('Scale Nodes', scale_tree, 'ctrl++', shortcutContext=2, icon=_get_icon('scale_nodes'))
@@ -82,6 +81,7 @@ def install_menus(icons_root=None, install_experimental_menus=False):
     organize_menu.addCommand('Distribute Nodes Vertically', partial(interval, dag.AXIS_Y), 'meta+ctrl+0',
                              shortcutContext=2, icon=_get_icon('space_y'))
     organize_menu.addCommand('Mirror Nodes', mirror_nodes, 'meta+/', shortcutContext=2, icon=_get_icon('mirror_x'))
+    organize_menu.addCommand('Summon Nodes', dag.summon_nodes, 'ctrl+f', shortcutContext=2, icon=_get_icon('summon'))
 
     organize_menu.addSeparator()
 

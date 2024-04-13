@@ -242,6 +242,35 @@ def last_clicked_position():
         select(selection)
 
 
+def cursor_dag_position():
+    """
+    returns the x and y coordinates of the cursor position in Nuke DAG coordinates.
+
+    If mouse is not over the DAG, returns the center of the DAG.
+
+    Returns:
+        QtCore.QPoint(): Cursor position in node graph
+    """
+    active_dag = get_current_dag()
+    if not active_dag:
+        return QtCore.QPoint(*nuke.center())
+
+    dag_node = get_dag_node(active_dag)
+
+    dag_rect = active_dag.geometry()
+    cursor_pos = QtGui.QCursor().pos()
+
+    cursor_pos = active_dag.mapFromGlobal(cursor_pos)
+    if not dag_rect.contains(cursor_pos):
+        return QtCore.QPoint(*nuke.center())
+
+    with dag_node:
+        scale = nuke.zoom()
+        cursor_to_center = cursor_pos - dag_rect.center()
+        scaled_cursor = cursor_to_center / scale
+        return QtCore.QPoint(*nuke.center()) + scaled_cursor
+
+
 def get_label_size(node, wrap=True):
     """ Calculate the size of a label for a nuke Node
 
@@ -475,6 +504,21 @@ class NodeWrapper(object):
             missing_size = label_size.width() - new_bounds.width()
             new_bounds.adjust(-missing_size/2, 0, missing_size/2, 0)
         self.setCoords(*new_bounds.getCoords())
+
+
+def summon_nodes(nodes=None):
+    """ Summon nodes to the cursor position, or to the center of the DAG if the cursor is not over the DAG. """
+    if nodes is None:
+        nodes = nuke.selectedNodes()
+    if not nodes:
+        return
+    cursor_pos = cursor_dag_position()
+    bounds = get_nodes_bounds(nodes)
+    center = bounds.center().toPoint()
+    offset = cursor_pos - center
+    for node in nodes:
+        node = NodeWrapper(node)
+        node.translate(offset)
 
 
 def de_intersect():
