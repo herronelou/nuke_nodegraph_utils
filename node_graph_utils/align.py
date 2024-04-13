@@ -3,8 +3,8 @@ from collections import defaultdict
 
 import nuke
 
-from node_graph_utils.dag import (sort_nodes_by_position, sort_nodes_by_distance,
-                                  get_nodes_bounds, NodeWrapper, node_center)
+from .dag import (sort_nodes_by_position, sort_nodes_by_distance,
+                  get_nodes_bounds, NodeWrapper, node_center)
 
 
 def smart_align(direction, selection=None):
@@ -209,4 +209,3 @@ def move_no_collision(node, nodes_to_collide, axis, destination, padding=3):
                 colliding = True
                 break
         i += 1
-

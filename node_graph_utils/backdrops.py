@@ -2,13 +2,81 @@
 
 # nuke
 import nuke
+from Qt import QtWidgets
 
-from node_graph_utils.colors import random_colour, rgba_float_to_dec
-from node_graph_utils.dag import NodeWrapper
+from .colors import random_colour, rgba_float_to_dec
+from .dag import NodeWrapper
 
 
 # Backdrops
-def auto_backdrop(nodes=None, padding=50, font_size=40, text=None):
+class BackdropDialog(QtWidgets.QDialog):
+
+    presets = {
+        'Despill': {'label': 'DESPILL', 'hue': 0.105, 'saturation': 0.15},
+        'Denoise': {'label': 'DENOISE', 'saturation': 0},
+        'Key:blue': {'label': 'KEY', 'hue': 0.57, 'saturation': 1},
+        'Key:green': {'label': 'KEY', 'hue': 0.33, 'saturation': 0.8},
+        'Paint': {'label': 'PAINT', 'hue': 0.8, 'saturation': 1},
+        'Prep': {'label': 'PREP', 'hue': 0.8, 'saturation': 1},
+        'Roto': {'label': 'ROTO', 'hue': 0.57, 'saturation': .3},
+    }
+
+    def __init__(self, parent=None):
+        super(BackdropDialog, self).__init__(parent=parent)
+
+        # Knobs
+        self.label = QtWidgets.QComboBox()
+        self.label.setEditable(True)  # Allow typing
+        self.label.setInsertPolicy(self.label.InsertAtTop)  # Add typed entries to the top
+
+        self.label.addItem('')
+        for preset in self.presets:
+            self.label.addItem(preset)
+
+        self.centered = QtWidgets.QCheckBox("Center Label")
+        self.centered.setChecked(True)
+
+        # Create the button box
+        button_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+
+        # Make a layout
+        layout = QtWidgets.QVBoxLayout()
+        form = QtWidgets.QFormLayout()
+        form.addRow('Label', self.label)
+        form.addWidget(self.centered)
+        layout.addLayout(form)
+        layout.addWidget(button_box)
+        self.setLayout(layout)
+
+        # Connect Signals
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+
+    def make_backdrop(self):
+        label = self.label.currentText()
+
+        text = label
+        hue = saturation = None
+        center = self.centered.isChecked()
+        if label in self.presets:
+            settings = self.presets[label]
+            text = settings.get('label', text)
+            hue = settings.get('hue')
+            saturation = settings.get('saturation')
+        bd = auto_backdrop(text=text, hue=hue, saturation=saturation, center_label=center)
+        if bd:
+            bd.setSelected(True)
+
+
+def auto_backdrop_dialog():
+    dialog = BackdropDialog(parent=QtWidgets.QApplication.activeWindow())
+    accepted = dialog.exec_()
+    if accepted:
+        dialog.make_backdrop()
+
+
+def auto_backdrop(nodes=None, padding=50, font_size=40, text=None, center_label=False, bold=False,
+                  hue=None, saturation=None, brightness=None, backdrop_node=None):
     """
     Automatically puts a backdrop behind the provided/selected nodes.
 
@@ -17,23 +85,37 @@ def auto_backdrop(nodes=None, padding=50, font_size=40, text=None):
         padding(int): Add padding around the nodes (default 50px)
         font_size (int): Size for the label (default 40px)
         text (str): Label for the backdrop. Will prompt user if None
+        center_label (bool): If True, label text will be centered, via html tags
+        bold (bool): If true, Text label will be bold, via html tags.
+        hue (float): Color Hue for the backdrop, optional
+        saturation (float): Saturation of the backdrop color, optional
+        brightness (float): Brightness of the backdrop color, optional
+        backdrop_node (nuke.Node): Optionally pass an existing backdrop node which
+            will be re-used as the auto-backdrop.
 
     Returns:
         nuke.Node: Created backdrop node
     """
-    if not nodes:
+    if nodes is None:
         nodes = nuke.selectedNodes()
         if not nodes:
             nuke.message('no nodes are selected')
             return None
 
-    if text is None:
-        text = nuke.getInput('Backdrop Label', '')
-
-    backdrop = NodeWrapper(nuke.nodes.BackdropNode(note_font_size=font_size))
+    backdrop = NodeWrapper(backdrop_node or nuke.nodes.BackdropNode())
+    backdrop.node['note_font_size'].setValue(font_size)
     if text:
-        backdrop.node['label'].setValue(text)
-        backdrop.node.setName('Backdrop_{}'.format(text))
+        formatted_text = text
+        if bold:
+            formatted_text = '<b>{}</b>'.format(formatted_text)
+        if center_label:
+            formatted_text = '<center>{}</center>'.format(formatted_text)
+        backdrop.node['label'].setValue(formatted_text)
+        if len(text) <= 64:
+            try:
+                backdrop.node.setName('Backdrop_{}'.format(text))
+            except ValueError:
+                pass  # Illegal for a name, we keep default name
 
     # Calculate bounds for the backdrop node.
     backdrop.place_around_nodes(nodes, padding=padding)
@@ -45,7 +127,7 @@ def auto_backdrop(nodes=None, padding=50, font_size=40, text=None):
     if selected_backdrop_nodes:
         z_order = min([node['z_order'].value() for node in selected_backdrop_nodes]) - 1
     else:
-        # otherwise (no backdrop in selection) find the nearest backdrop if exists and set the new one in front of it
+        # otherwise, (no backdrop in selection) find the nearest backdrop if exists and set the new one in front of it
         # add 3 so that it has 2 empty spots in between
         other_backdrops = [NodeWrapper(bd) for bd in nuke.allNodes('BackdropNode') if bd not in nodes]
         for other_backdrop in other_backdrops:
@@ -54,10 +136,14 @@ def auto_backdrop(nodes=None, padding=50, font_size=40, text=None):
             if backdrop.intersects(other_backdrop.bounds):
                 z_order = max(z_order, other_backdrop.node['z_order'].value() + 3)
 
-    brightness = 0.5 if z_order % 2 == 0 else 0.35
+    # Define color
+    if brightness is None:
+        brightness = 0.5 if z_order % 2 == 0 else 0.35
+    if saturation is None:
+        saturation = 0.2
 
     # TODO: Use label as a seed for colors? Or categories with presets? Or use the nodes to guess?
-    backdrop.node['tile_color'].setValue(rgba_float_to_dec(*random_colour(value=brightness, saturation=0.2)))
+    backdrop.node['tile_color'].setValue(rgba_float_to_dec(*random_colour(hue, saturation, brightness)))
     backdrop.node['z_order'].setValue(z_order)
 
     return backdrop.node
