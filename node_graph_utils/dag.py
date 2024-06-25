@@ -39,6 +39,11 @@ def get_dag_widgets(visible=True):
     dags = []
     all_widgets = QtWidgets.QApplication.instance().allWidgets()
     for widget in all_widgets:
+        if not widget.windowTitle():
+            # In Nuke 15.1 (maybe 15.0, untested) Foundry added an object name to the QGLWidgets.
+            # These are not the DAG widgets we are looking for here.
+            # They do not have a windowTitle, so we can filter them out.
+            continue
         if DAG_OBJECT_NAME in widget.objectName():
             if not visible or (visible and widget.isVisible()):
                 dags.append(widget)
