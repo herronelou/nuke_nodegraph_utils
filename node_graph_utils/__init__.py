@@ -100,3 +100,9 @@ def install_menus(icons_root=None, install_experimental_menus=False):
         experimental_menu.addCommand('Draw Connections', snappy.snap, 'u', shortcutContext=2)
         experimental_menu.addCommand('Snip Connections', snippy.snip, 'y', shortcutContext=2)
         experimental_menu.addCommand('De-Intersect Nodes', dag.de_intersect)
+
+
+def install_auto_dot_color():
+    """ Install the callback to color dots based on their connections """
+    nuke.addKnobChanged(colors.auto_dot_color_callback, nodeClass='Dot')
+    nuke.addKnobChanged(colors.tile_color_changed_callback)

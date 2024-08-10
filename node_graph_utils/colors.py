@@ -1,4 +1,5 @@
 import random
+import nuke
 
 
 # Color Conversion utils
@@ -82,11 +83,14 @@ def dec_to_rgba_float(decimal):
 def random_colour(hue=None, saturation=None, value=None):
     """
     Generates a random color.
-    :param hue: float or None. Will generate randomly if None.
-    :param saturation: float or None. Will generate randomly if None.
-    :param value: float or None. Will generate randomly if None.
-    :return: tuple(r, g, b)
-    :rtype: tuple[float]
+
+    Args:
+        hue (float, optional): The hue value. If None, a random value will be generated.
+        saturation (float, optional): The saturation value. If None, a random value will be generated.
+        value (float, optional): The value value (brightness). If None, a random value will be generated.
+
+    Returns:
+        tuple[float]: The RGB values of the generated color.
     """
     import colorsys
     if hue is None:
@@ -99,3 +103,83 @@ def random_colour(hue=None, saturation=None, value=None):
     r, g, b = colorsys.hsv_to_rgb(hue, saturation, value)
 
     return r, g, b
+
+
+def node_color(node):
+    """
+    Get the color of a node, even if set to default.
+
+    Args:
+        node (nuke.Node): The node to get the color of.
+
+    Returns:
+        int: The color of the node.
+    """
+    if not node:
+        return 0
+    color = node.knob('tile_color').value()
+    if not color:
+        color = nuke.defaultNodeColor(node.Class())
+    return color
+
+
+# Auto Dot color callbacks
+def auto_dot_color_callback():
+    """
+    Change the color of a dot to that of its parent node.
+    """
+    def real_parent(_node):
+        """
+        Get the parent non-dot parent node.
+
+        Args:
+            _node (nuke.Node): The node to find the parent of.
+
+        Returns:
+            nuke.Node: The parent node.
+        """
+        _parent = _node.input(0)
+        while _parent and _parent.Class() == 'Dot':
+            _parent = _parent.input(0)
+        return _parent
+
+    node = nuke.thisNode()
+    if nuke.thisKnob().name() in ['inputChange']:
+        parent = real_parent(node)
+        color = node_color(parent)
+
+        recursive_tile_color(node, color)
+
+    elif nuke.thisKnob().name() in ['selected']:
+        # On selection, we run a less expensive version of the same function.
+        # We avoid recursive calls as we may have a lot of dots in the selection.
+        # This should only come into play when opening a script that didn't have the callback enabled.
+        parent = node.input(0)
+        color = node_color(parent)
+        node.knob('tile_color').setValue(color)
+
+
+def tile_color_changed_callback():
+    """
+    When the tile color changes, we need to update children dots color.
+    """
+    if nuke.thisKnob().name() != 'tile_color':
+        return
+    node = nuke.thisNode()
+    color = nuke.thisKnob().value()
+    recursive_tile_color(node, color)
+
+
+def recursive_tile_color(node, color):
+    """
+    Recursively set the tile color of a node and its dot-children.
+
+    Args:
+        node (nuke.Node): The node to set the color of.
+        color (int): The color to set the node to.
+    """
+    node.knob('tile_color').setValue(color)
+    inputs = nuke.INPUTS | nuke.HIDDEN_INPUTS
+    dependents = [dependent for dependent in node.dependent(inputs, forceEvaluate=False) if dependent.Class() == 'Dot']
+    for node in dependents:
+        recursive_tile_color(node, color)
