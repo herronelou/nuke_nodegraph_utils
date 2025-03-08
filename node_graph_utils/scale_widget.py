@@ -1,8 +1,15 @@
 import nuke
-from Qt import QtCore, QtGui, QtWidgets, QtOpenGL
+from Qt import QtCore, QtGui, QtWidgets
 
 from .dag import (get_nodes_bounds, get_dag_widgets,
                   NodeWrapper, get_dag_node, calculate_bounds_adjustment)
+
+try:
+    # PySide2
+    from PySide2.QtOpenGL import QGLWidget as DagWidgetClass
+except ImportError:
+    # PySide6
+    from PySide6.QtOpenGLWidgets import QOpenGLWidget as DagWidgetClass
 
 
 class ScaleWidget(QtWidgets.QWidget):
@@ -274,7 +281,9 @@ class ScaleWidget(QtWidgets.QWidget):
                 if not QtWidgets.QApplication.keyboardModifiers() and event.buttons() == event.button():
                     # The mouse press event had no other button pressed at the same time
                     # However, events can happen on other widgets, so check click position
-                    if isinstance(widget, QtOpenGL.QGLWidget):
+                    # In versions before Nuke 16, the DAG widget is a QGLWidget.
+                    # In Nuke 16 and later, the DAG widget is a regular QWidget, but Foundry set the name as "DAG".
+                    if isinstance(widget, DagWidgetClass) or widget.objectName() == 'DAG':
                         self.close()
                     return False
 
@@ -306,15 +315,20 @@ class ScaleWidget(QtWidgets.QWidget):
 
             return True
 
-        # Due to a QT bug, out transparent widget is swallowing wheel events, pass them back to DAG
-        # See https://bugreports.qt.io/browse/QTBUG-53418
-        elif event.type() == QtCore.QEvent.Wheel and widget is self:
-            dag = get_dag_widgets()[0]
-            gl_widget = dag.findChild(QtOpenGL.QGLWidget)
-            if gl_widget:
-                QtWidgets.QApplication.sendEvent(gl_widget, event)
-                self.repaint()
-                return True
+        elif event.type() == QtCore.QEvent.Wheel:
+            # Due to a QT bug, out transparent widget is swallowing wheel events, pass them back to DAG
+            # See https://bugreports.qt.io/browse/QTBUG-53418
+            if widget is self:
+                dag = get_dag_widgets()[0]
+                gl_widget = dag.findChild(DagWidgetClass)
+                if gl_widget:
+                    QtWidgets.QApplication.sendEvent(gl_widget, event)
+                    self.repaint()
+                    return True
+            # In Nuke 16+, PySide6 is used, so the bug above is fixed.
+            # We still need to first let it handle the event then repaint.
+            elif widget.objectName() == 'DAG':
+                QtCore.QTimer.singleShot(0, self.repaint)
 
         return False
 
