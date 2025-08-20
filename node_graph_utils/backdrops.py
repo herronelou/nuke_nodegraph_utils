@@ -27,7 +27,7 @@ class BackdropDialog(QtWidgets.QDialog):
         # Knobs
         self.label = QtWidgets.QComboBox()
         self.label.setEditable(True)  # Allow typing
-        self.label.setInsertPolicy(self.label.InsertAtTop)  # Add typed entries to the top
+        self.label.setInsertPolicy(self.label.InsertPolicy.InsertAtTop)  # Fixed Attribute for PySide6 compat
 
         self.label.addItem('')
         for preset in self.presets:
