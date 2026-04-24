@@ -333,7 +333,8 @@ class ScaleWidget(QtWidgets.QWidget):
         return False
 
     def show(self):
-        if len(self.nodes) < 2:
+        node_is_backdrop: bool = len(self.nodes) == 1 and self.nodes[0].Class() == 'BackdropNode'
+        if len(self.nodes) < 2 and not node_is_backdrop:
             # self.restore_context()
             return
         # self.dag_node.begin()
